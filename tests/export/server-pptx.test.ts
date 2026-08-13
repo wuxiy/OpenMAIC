@@ -273,6 +273,19 @@ describe('buildServerPptx', () => {
         points: ['', 'arrow'],
       },
       {
+        id: 'edge-snake-line',
+        type: 'line',
+        left: 959,
+        top: 170,
+        width: 3,
+        start: [0, 0],
+        end: [-899, 100],
+        broken: [0, 100],
+        style: 'solid',
+        color: '#5B9BD5',
+        points: ['', 'arrow'],
+      },
+      {
         id: 'table-1',
         type: 'table',
         left: 300,
@@ -332,5 +345,6 @@ describe('buildServerPptx', () => {
     expect(slideXml).toContain('课文线索.txt');
     expect(slideXml).toContain('发现 → 进入 → 离开 → 再寻');
     expect(zip.file('ppt/charts/chart1.xml')).not.toBeNull();
+    expect(slideXml.match(/<a:tailEnd type="arrow"\/>/g)).toHaveLength(1);
   });
 });

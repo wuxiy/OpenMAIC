@@ -477,6 +477,17 @@ function addSlideElements(
     }
 
     if (element.type === 'line') {
+      // LLM-generated row-transition connectors sometimes start on the extreme
+      // right edge and span almost the entire canvas back to the next row. Their
+      // arrowheads are clipped by PowerPoint; rendering the full path is worse,
+      // because it crosses the intervening row's text. The within-row arrows
+      // already preserve the reading order, so omit only this unsafe connector.
+      if (
+        (element.broken || element.broken2) &&
+        Math.abs(element.end[0] - element.start[0]) >= slide.viewportSize * 0.9
+      ) {
+        continue;
+      }
       const points = formatPoints(toPoints(linePath(element)), ratioPx2Inch);
       const maxX = Math.max(element.start[0], element.end[0]);
       const maxY = Math.max(element.start[1], element.end[1]);
