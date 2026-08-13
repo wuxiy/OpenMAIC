@@ -141,7 +141,8 @@ const scenes = [
         {
           id: 'q2',
           type: 'short_answer',
-          question: '用一句话概括桃花源的社会图景。',
+          question:
+            '陶渊明在《桃花源记》中描绘了怎样的社会理想？请结合文本证据回答，至少写出两点。',
           analysis: '围绕安宁、和谐、富足作答。',
           points: 10,
         },
@@ -180,7 +181,8 @@ describe('buildServerPptx', () => {
     expect(allSlideXml).toContain('疏通重点文言词句');
     expect(allSlideXml).toContain('黄发垂髫');
     expect(allSlideXml).toContain('老人和儿童');
-    expect(allSlideXml).toContain('概括桃花源的社会图景');
+    expect(allSlideXml).toContain('陶渊明在《桃花源记》中描绘了怎样的社会理想？');
+    expect(allSlideXml).toContain('请结合文本证据回答，至少写出两点。');
     expect(allSlideXml).toContain('F7F2E8');
 
     const notesXml = await zip.file('ppt/notesSlides/notesSlide1.xml')!.async('string');

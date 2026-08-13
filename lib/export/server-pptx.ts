@@ -162,6 +162,32 @@ function quizNotes(question: QuizQuestion): string {
     .join('\n');
 }
 
+function wrapCjkText(text: string, maxCharactersPerLine: number): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxCharactersPerLine) return normalized;
+
+  const lines: string[] = [];
+  let remaining = normalized;
+  while (remaining.length > maxCharactersPerLine) {
+    const candidate = remaining.slice(0, maxCharactersPerLine + 1);
+    const naturalBreak = Math.max(
+      candidate.lastIndexOf('，'),
+      candidate.lastIndexOf('。'),
+      candidate.lastIndexOf('；'),
+      candidate.lastIndexOf('？'),
+      candidate.lastIndexOf(' '),
+    );
+    const breakAt =
+      naturalBreak >= Math.floor(maxCharactersPerLine * 0.6)
+        ? naturalBreak + 1
+        : maxCharactersPerLine;
+    lines.push(remaining.slice(0, breakAt).trim());
+    remaining = remaining.slice(breakAt).trim();
+  }
+  if (remaining) lines.push(remaining);
+  return lines.join('\n');
+}
+
 function addQuizSlide(
   pptx: pptxgen,
   scene: Scene,
@@ -182,7 +208,7 @@ function addQuizSlide(
     bold: true,
     margin: 0,
   });
-  slide.addText(question.question, {
+  slide.addText(wrapCjkText(question.question, 28), {
     x: 0.65,
     y: 1.05,
     w: 12,
