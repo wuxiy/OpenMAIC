@@ -230,7 +230,7 @@ function addQuizSlide(
     // Quiz options are authored as unconstrained prose. Force deterministic CJK
     // wrapping and give each row enough height for two lines; `fit: shrink`
     // alone can preserve a single over-wide line and clip it in server renders.
-    const rowHeight = Math.min(1.05, 4.35 / options.length);
+    const rowHeight = Math.min(0.85, 3.65 / options.length);
     for (let index = 0; index < options.length; index++) {
       const option = options[index];
       const y = 2.45 + index * rowHeight;
@@ -261,7 +261,7 @@ function addQuizSlide(
         w: 10.85,
         h: rowHeight - 0.06,
         fontFace: DEFAULT_FONT_FAMILY,
-        fontSize: options.length > 4 ? 16 : 18,
+        fontSize: 16,
         color: '2F302D',
         margin: 0,
         fit: 'shrink',
