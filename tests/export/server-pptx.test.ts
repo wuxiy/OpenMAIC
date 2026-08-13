@@ -122,7 +122,31 @@ const scenes = [
     title: '课堂检查题',
     order: 2,
     type: 'quiz',
-    content: { type: 'quiz', questions: [] },
+    content: {
+      type: 'quiz',
+      questions: [
+        {
+          id: 'q1',
+          type: 'single',
+          question: '“黄发垂髫”在文中指代什么？',
+          options: [
+            { value: 'A', label: '老人和儿童' },
+            { value: 'B', label: '成年男女' },
+          ],
+          answer: ['A'],
+          analysis: '“黄发”指老人，“垂髫”指儿童。',
+          points: 10,
+          hasAnswer: true,
+        },
+        {
+          id: 'q2',
+          type: 'short_answer',
+          question: '用一句话概括桃花源的社会图景。',
+          analysis: '围绕安宁、和谐、富足作答。',
+          points: 10,
+        },
+      ],
+    },
   },
 ] as unknown as Scene[];
 
@@ -133,33 +157,46 @@ describe('buildServerPptx', () => {
     expect(result.bytes).toBeInstanceOf(Uint8Array);
     expect(result.bytes.byteLength).toBeGreaterThan(10_000);
     expect(Array.from(result.bytes.slice(0, 2))).toEqual([0x50, 0x4b]);
-    expect(result.slideCount).toBe(2);
+    expect(result.slideCount).toBe(4);
     expect(result.skippedElements).toEqual([]);
 
     const zip = await JSZip.loadAsync(result.bytes);
     expect(zip.file('ppt/slides/slide1.xml')).not.toBeNull();
     expect(zip.file('ppt/slides/slide2.xml')).not.toBeNull();
-    expect(zip.file('ppt/slides/slide3.xml')).toBeNull();
+    expect(zip.file('ppt/slides/slide3.xml')).not.toBeNull();
+    expect(zip.file('ppt/slides/slide4.xml')).not.toBeNull();
+    expect(zip.file('ppt/slides/slide5.xml')).toBeNull();
 
     const allSlideXml = (
       await Promise.all([
         zip.file('ppt/slides/slide1.xml')!.async('string'),
         zip.file('ppt/slides/slide2.xml')!.async('string'),
+        zip.file('ppt/slides/slide3.xml')!.async('string'),
+        zip.file('ppt/slides/slide4.xml')!.async('string'),
       ])
     ).join('\n');
     expect(allSlideXml).toContain('桃花源记');
     expect(allSlideXml).toContain('学习目标');
     expect(allSlideXml).toContain('疏通重点文言词句');
+    expect(allSlideXml).toContain('黄发垂髫');
+    expect(allSlideXml).toContain('老人和儿童');
+    expect(allSlideXml).toContain('概括桃花源的社会图景');
     expect(allSlideXml).toContain('F7F2E8');
 
     const notesXml = await zip.file('ppt/notesSlides/notesSlide1.xml')!.async('string');
     expect(notesXml).toContain('今天我们一起走进陶渊明笔下的桃花源');
+    const quizNotes = await zip.file('ppt/notesSlides/notesSlide3.xml')!.async('string');
+    expect(quizNotes).toContain('正确答案：A');
+    expect(quizNotes).toContain('黄发”指老人');
   });
 
   it('fails explicitly when the persisted classroom contains no slide scenes', async () => {
-    await expect(buildServerPptx({ stage, scenes: scenes.slice(2) })).rejects.toThrow(
-      'Classroom has no slide scenes to export',
-    );
+    await expect(
+      buildServerPptx({
+        stage,
+        scenes: [{ ...scenes[2], content: { type: 'quiz', questions: [] } } as Scene],
+      }),
+    ).rejects.toThrow('Classroom has no exportable scenes');
   });
 
   it('fails closed on media without performing implicit network access', async () => {

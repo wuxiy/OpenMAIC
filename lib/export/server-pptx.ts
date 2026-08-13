@@ -3,7 +3,7 @@ import tinycolor from 'tinycolor2';
 
 import { type AST, toAST } from '@/lib/export/html-parser';
 import { toPoints, type SvgPoints } from '@/lib/export/svg-path-parser';
-import type { Scene, Stage } from '@/lib/types/stage';
+import type { QuizQuestion, Scene, Stage } from '@/lib/types/stage';
 
 type PersistedSlide = Extract<Scene['content'], { type: 'slide' }>['canvas'];
 type PersistedElement = PersistedSlide['elements'][number];
@@ -151,6 +151,114 @@ function speakerNotes(scene: Scene): string {
     .map((action) => ('text' in action && typeof action.text === 'string' ? action.text : ''))
     .filter(Boolean)
     .join('\n');
+}
+
+function quizNotes(question: QuizQuestion): string {
+  return [
+    question.answer?.length ? `正确答案：${question.answer.join('、')}` : '',
+    question.analysis ? `解析：${question.analysis}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function addQuizSlide(
+  pptx: pptxgen,
+  scene: Scene,
+  question: QuizQuestion,
+  questionIndex: number,
+  questionCount: number,
+) {
+  const slide = pptx.addSlide();
+  slide.background = { color: 'F7F2E8' };
+  slide.addText(`${scene.title} · ${questionIndex + 1}/${questionCount}`, {
+    x: 0.65,
+    y: 0.38,
+    w: 11.9,
+    h: 0.5,
+    fontFace: DEFAULT_FONT_FAMILY,
+    fontSize: 18,
+    color: '6F655A',
+    bold: true,
+    margin: 0,
+  });
+  slide.addText(question.question, {
+    x: 0.65,
+    y: 1.05,
+    w: 12,
+    h: 1.15,
+    fontFace: DEFAULT_FONT_FAMILY,
+    fontSize: 28,
+    color: '2F302D',
+    bold: true,
+    margin: 0,
+    fit: 'shrink',
+  });
+
+  const options = question.options ?? [];
+  if (options.length > 0) {
+    const rowHeight = Math.min(0.85, 3.65 / options.length);
+    for (let index = 0; index < options.length; index++) {
+      const option = options[index];
+      const y = 2.45 + index * rowHeight;
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 0.72,
+        y,
+        w: 0.52,
+        h: 0.48,
+        rectRadius: 0.08,
+        fill: { color: '395B64' },
+        line: { color: '395B64' },
+      });
+      slide.addText(option.value, {
+        x: 0.72,
+        y: y + 0.04,
+        w: 0.52,
+        h: 0.36,
+        fontFace: DEFAULT_FONT_FAMILY,
+        fontSize: 16,
+        color: 'FFFFFF',
+        bold: true,
+        align: 'center',
+        margin: 0,
+      });
+      slide.addText(option.label, {
+        x: 1.45,
+        y: y - 0.02,
+        w: 10.85,
+        h: 0.58,
+        fontFace: DEFAULT_FONT_FAMILY,
+        fontSize: 20,
+        color: '2F302D',
+        margin: 0,
+        fit: 'shrink',
+      });
+    }
+  } else {
+    slide.addText('请结合文本证据作答：', {
+      x: 0.72,
+      y: 2.5,
+      w: 11.5,
+      h: 0.6,
+      fontFace: DEFAULT_FONT_FAMILY,
+      fontSize: 20,
+      color: '395B64',
+      bold: true,
+      margin: 0,
+    });
+    for (let index = 0; index < 3; index++) {
+      slide.addShape(pptx.ShapeType.line, {
+        x: 0.85,
+        y: 3.45 + index * 0.85,
+        w: 11.2,
+        h: 0,
+        line: { color: 'B7AEA1', width: 1.2 },
+      });
+    }
+  }
+
+  const notes = [speakerNotes(scene), quizNotes(question)].filter(Boolean).join('\n\n');
+  if (notes) slide.addNotes(notes);
 }
 
 function setLayout(pptx: pptxgen, viewportRatio: number) {
@@ -531,7 +639,10 @@ export async function buildServerPptx(input: BuildServerPptxInput): Promise<Serv
   const slideScenes = input.scenes
     .filter((scene) => scene.content.type === 'slide')
     .sort((left, right) => left.order - right.order);
-  if (slideScenes.length === 0) throw new Error('Classroom has no slide scenes to export');
+  const quizScenes = input.scenes
+    .filter((scene) => scene.content.type === 'quiz' && scene.content.questions.length > 0)
+    .sort((left, right) => left.order - right.order);
+  if (slideScenes.length === 0) throw new Error('Classroom has no exportable scenes');
 
   const firstSlide = slideScenes[0].content.type === 'slide' ? slideScenes[0].content.canvas : null;
   if (!firstSlide) throw new Error('Classroom has no slide scenes to export');
@@ -548,7 +659,16 @@ export async function buildServerPptx(input: BuildServerPptxInput): Promise<Serv
   pptx.title = input.stage.name;
   setLayout(pptx, firstSlide.viewportRatio);
 
-  for (const scene of slideScenes) {
+  for (const scene of [...slideScenes, ...quizScenes].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    if (scene.content.type === 'quiz') {
+      const questions = scene.content.questions;
+      questions.forEach((question, index) =>
+        addQuizSlide(pptx, scene, question, index, questions.length),
+      );
+      continue;
+    }
     if (scene.content.type !== 'slide') continue;
     const slide = scene.content.canvas;
     const ratioPx2Inch = 96 * (slide.viewportSize / 960);
@@ -572,5 +692,9 @@ export async function buildServerPptx(input: BuildServerPptxInput): Promise<Serv
   if (!(output instanceof Uint8Array)) {
     throw new Error('PPTX generator returned an unexpected output type');
   }
-  return { bytes: output, slideCount: slideScenes.length, skippedElements };
+  const quizSlideCount = quizScenes.reduce(
+    (count, scene) => count + (scene.content.type === 'quiz' ? scene.content.questions.length : 0),
+    0,
+  );
+  return { bytes: output, slideCount: slideScenes.length + quizSlideCount, skippedElements };
 }
