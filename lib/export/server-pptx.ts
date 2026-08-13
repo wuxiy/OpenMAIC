@@ -227,7 +227,10 @@ function addQuizSlide(
 
   const options = question.options ?? [];
   if (options.length > 0) {
-    const rowHeight = Math.min(0.85, 3.65 / options.length);
+    // Quiz options are authored as unconstrained prose. Force deterministic CJK
+    // wrapping and give each row enough height for two lines; `fit: shrink`
+    // alone can preserve a single over-wide line and clip it in server renders.
+    const rowHeight = Math.min(1.05, 4.35 / options.length);
     for (let index = 0; index < options.length; index++) {
       const option = options[index];
       const y = 2.45 + index * rowHeight;
@@ -252,13 +255,13 @@ function addQuizSlide(
         align: 'center',
         margin: 0,
       });
-      slide.addText(option.label, {
+      slide.addText(wrapCjkText(option.label, 26), {
         x: 1.45,
         y: y - 0.02,
         w: 10.85,
-        h: 0.58,
+        h: rowHeight - 0.06,
         fontFace: DEFAULT_FONT_FAMILY,
-        fontSize: 20,
+        fontSize: options.length > 4 ? 16 : 18,
         color: '2F302D',
         margin: 0,
         fit: 'shrink',

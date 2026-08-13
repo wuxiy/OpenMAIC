@@ -130,7 +130,10 @@ const scenes = [
           type: 'single',
           question: '下列对“便扶向路，处处志之”中“志”的解释，正确的一项是',
           options: [
-            { value: 'A', label: '老人和儿童' },
+            {
+              value: 'A',
+              label: '《桃花源记》以渔人行踪为线索，描绘了一个和平安宁的理想社会',
+            },
             { value: 'B', label: '成年男女' },
           ],
           answer: ['A'],
@@ -182,7 +185,8 @@ describe('buildServerPptx', () => {
     expect(allSlideText).toContain('疏通重点文言词句');
     expect(allSlideText).toContain('便扶向路');
     expect(allSlideText).toContain('正确的一项是');
-    expect(allSlideText).toContain('老人和儿童');
+    expect(allSlideText).toContain('《桃花源记》以渔人行踪为线索，');
+    expect(allSlideText).toContain('描绘了一个和平安宁的理想社会');
     expect(allSlideText).toContain('陶渊明在《桃花源记》中描绘了怎样的社会理想？');
     expect(allSlideText).toContain('请结合文本证据回答，至少写出两点。');
     expect(allSlideXml).toContain('F7F2E8');
