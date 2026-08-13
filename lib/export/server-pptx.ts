@@ -208,7 +208,11 @@ function addQuizSlide(
     bold: true,
     margin: 0,
   });
-  slide.addText(wrapCjkText(question.question, 28), {
+  // At 28pt a full-width CJK glyph consumes roughly one character cell. Keep
+  // quiz prompts below the measured 16:9 title-box capacity instead of relying
+  // on PowerPoint's locale-dependent auto-fit, which can clip a 28-character
+  // Chinese prompt in server-rendered decks.
+  slide.addText(wrapCjkText(question.question, 20), {
     x: 0.65,
     y: 1.05,
     w: 12,

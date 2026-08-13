@@ -128,7 +128,7 @@ const scenes = [
         {
           id: 'q1',
           type: 'single',
-          question: '“黄发垂髫”在文中指代什么？',
+          question: '下列对“便扶向路，处处志之”中“志”的解释，正确的一项是',
           options: [
             { value: 'A', label: '老人和儿童' },
             { value: 'B', label: '成年男女' },
@@ -176,14 +176,19 @@ describe('buildServerPptx', () => {
         zip.file('ppt/slides/slide4.xml')!.async('string'),
       ])
     ).join('\n');
-    expect(allSlideXml).toContain('桃花源记');
-    expect(allSlideXml).toContain('学习目标');
-    expect(allSlideXml).toContain('疏通重点文言词句');
-    expect(allSlideXml).toContain('黄发垂髫');
-    expect(allSlideXml).toContain('老人和儿童');
-    expect(allSlideXml).toContain('陶渊明在《桃花源记》中描绘了怎样的社会理想？');
-    expect(allSlideXml).toContain('请结合文本证据回答，至少写出两点。');
+    const allSlideText = allSlideXml.replace(/<[^>]+>/g, '');
+    expect(allSlideText).toContain('桃花源记');
+    expect(allSlideText).toContain('学习目标');
+    expect(allSlideText).toContain('疏通重点文言词句');
+    expect(allSlideText).toContain('便扶向路');
+    expect(allSlideText).toContain('正确的一项是');
+    expect(allSlideText).toContain('老人和儿童');
+    expect(allSlideText).toContain('陶渊明在《桃花源记》中描绘了怎样的社会理想？');
+    expect(allSlideText).toContain('请结合文本证据回答，至少写出两点。');
     expect(allSlideXml).toContain('F7F2E8');
+    const firstQuizSlide = await zip.file('ppt/slides/slide3.xml')!.async('string');
+    expect(firstQuizSlide).toContain('中“志”的解');
+    expect(firstQuizSlide).toContain('释，正确的一项是');
 
     const notesXml = await zip.file('ppt/notesSlides/notesSlide1.xml')!.async('string');
     expect(notesXml).toContain('今天我们一起走进陶渊明笔下的桃花源');
