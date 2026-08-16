@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { createHash } from 'crypto';
 import path from 'path';
 import type {
   ClassroomGenerationProgress,
@@ -38,6 +39,10 @@ export interface ClassroomGenerationJob {
     scenesCount: number;
   };
   error?: string;
+  idempotency?: {
+    keyHash: string;
+    requestChecksum: string;
+  };
 }
 
 function jobFilePath(jobId: string) {
@@ -51,6 +56,26 @@ function buildInputSummary(input: GenerateClassroomInput): ClassroomGenerationJo
     hasPdf: !!input.pdfContent,
     pdfTextLength: input.pdfContent?.text.length || 0,
     pdfImageCount: input.pdfContent?.images.length || 0,
+  };
+}
+
+function buildQueuedJob(
+  jobId: string,
+  input: GenerateClassroomInput,
+  idempotency?: ClassroomGenerationJob['idempotency'],
+): ClassroomGenerationJob {
+  const now = new Date().toISOString();
+  return {
+    id: jobId,
+    status: 'queued',
+    step: 'queued',
+    progress: 0,
+    message: 'Classroom generation job queued',
+    createdAt: now,
+    updatedAt: now,
+    inputSummary: buildInputSummary(input),
+    scenesGenerated: 0,
+    ...(idempotency ? { idempotency } : {}),
   };
 }
 
@@ -97,26 +122,66 @@ export function isValidClassroomJobId(jobId: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(jobId);
 }
 
+export function isValidS2SClassroomJobId(jobId: string): boolean {
+  return /^s2s_[a-f0-9]{32}$/.test(jobId);
+}
+
 export async function createClassroomGenerationJob(
   jobId: string,
   input: GenerateClassroomInput,
 ): Promise<ClassroomGenerationJob> {
-  const now = new Date().toISOString();
-  const job: ClassroomGenerationJob = {
-    id: jobId,
-    status: 'queued',
-    step: 'queued',
-    progress: 0,
-    message: 'Classroom generation job queued',
-    createdAt: now,
-    updatedAt: now,
-    inputSummary: buildInputSummary(input),
-    scenesGenerated: 0,
-  };
+  const job = buildQueuedJob(jobId, input);
 
   await ensureClassroomJobsDir();
   await writeJsonFileAtomic(jobFilePath(jobId), job);
   return job;
+}
+
+export type CreateOrGetClassroomGenerationJobResult =
+  | { outcome: 'created' | 'replayed'; job: ClassroomGenerationJob }
+  | { outcome: 'conflict'; jobId: string };
+
+/**
+ * Atomically create or replay an S2S job on the single-replica file store.
+ *
+ * The deterministic job id and its idempotency metadata live in one JSON file,
+ * so there is no separate key-map write that can be lost between crashes. A
+ * create-only write prevents overwriting a concurrent winner. The in-process
+ * job runner remains single-replica by design.
+ */
+export async function createOrGetClassroomGenerationJob(
+  idempotencyKey: string,
+  requestChecksum: string,
+  input: GenerateClassroomInput,
+): Promise<CreateOrGetClassroomGenerationJobResult> {
+  const keyHash = createHash('sha256').update(idempotencyKey, 'utf8').digest('hex');
+  const jobId = `s2s_${keyHash.slice(0, 32)}`;
+  const finalPath = jobFilePath(jobId);
+  const job = buildQueuedJob(jobId, input, { keyHash, requestChecksum });
+
+  await ensureClassroomJobsDir();
+  return withJobLock(jobId, async () => {
+    try {
+      // Exclusive create: no process can overwrite the deterministic winner.
+      await fs.writeFile(finalPath, JSON.stringify(job, null, 2), {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+      return { outcome: 'created', job };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+
+    const existing = await readClassroomGenerationJob(jobId);
+    if (!existing) throw new Error(`Idempotent classroom job disappeared: ${jobId}`);
+    if (
+      existing.idempotency?.keyHash !== keyHash ||
+      existing.idempotency.requestChecksum !== requestChecksum
+    ) {
+      return { outcome: 'conflict', jobId };
+    }
+    return { outcome: 'replayed', job: existing };
+  });
 }
 
 export async function readClassroomGenerationJob(

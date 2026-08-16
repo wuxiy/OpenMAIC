@@ -49,8 +49,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Whitelist: access-code endpoints, health check
-  if (pathname.startsWith('/api/access-code/') || pathname === '/api/health') {
+  // S2S routes authenticate their Bearer token at the route boundary. They must
+  // not be forced through the human ACCESS_CODE cookie flow.
+  if (
+    pathname.startsWith('/api/access-code/') ||
+    pathname.startsWith('/api/s2s/') ||
+    pathname === '/api/health'
+  ) {
     return NextResponse.next();
   }
 
@@ -63,7 +68,11 @@ export async function middleware(request: NextRequest) {
   // API requests without valid cookie → 401
   if (pathname.startsWith('/api/')) {
     return NextResponse.json(
-      { success: false, errorCode: 'INVALID_REQUEST', error: 'Access code required' },
+      {
+        success: false,
+        errorCode: 'INVALID_REQUEST',
+        error: 'Access code required',
+      },
       { status: 401 },
     );
   }
